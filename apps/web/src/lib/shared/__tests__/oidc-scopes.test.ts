@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {
   DEFAULT_OIDC_SCOPES,
-  REQUIRED_OIDC_SCOPE,
+  OPENID_SCOPE,
   effectiveScopes,
   normalizeScopesInput,
   parseScopes,
@@ -22,6 +22,10 @@ describe('parseScopes', () => {
 })
 
 describe('effectiveScopes', () => {
+  it('preserves a set without openid for providers that reject it', () => {
+    expect(effectiveScopes({ scopes: 'publicData' })).toEqual(['publicData'])
+  })
+
   it('falls back to the defaults for null, blank, or whitespace-only', () => {
     expect(effectiveScopes({ scopes: null })).toEqual([...DEFAULT_OIDC_SCOPES])
     expect(effectiveScopes({ scopes: '' })).toEqual([...DEFAULT_OIDC_SCOPES])
@@ -56,18 +60,20 @@ describe('normalizeScopesInput', () => {
     expect(normalizeScopesInput([' openid ', ' public '])).toBe('openid public')
   })
 
+  it('persists a set without openid', () => {
+    expect(normalizeScopesInput(['publicData'])).toBe('publicData')
+  })
+
   it('preserves a custom subset of the defaults', () => {
     // A strict subset is a real choice, not the default set.
     expect(normalizeScopesInput(['openid', 'email'])).toBe('openid email')
   })
 })
 
-describe('REQUIRED_OIDC_SCOPE', () => {
-  it('is openid, the scope that makes this an OIDC request at all', () => {
-    // Without it the IdP owes no ID token and the userinfo endpoint has no
-    // openid-scoped token to accept, so the editor must not let it be removed.
-    expect(REQUIRED_OIDC_SCOPE).toBe('openid')
-    expect(DEFAULT_OIDC_SCOPES).toContain(REQUIRED_OIDC_SCOPE)
+describe('OPENID_SCOPE', () => {
+  it('is openid, and the defaults request it', () => {
+    expect(OPENID_SCOPE).toBe('openid')
+    expect(DEFAULT_OIDC_SCOPES).toContain(OPENID_SCOPE)
   })
 })
 
@@ -104,10 +110,10 @@ describe('supportedSubset', () => {
     ])
   })
 
-  it('always keeps the required scope, even if unadvertised', () => {
-    // Dropping openid would stop the request being an OIDC request at all, so
-    // the one-click fix must never produce that.
-    expect(supportedSubset(['openid', 'email'], ['email'])).toEqual(['openid', 'email'])
+  it('drops openid when the IdP advertises a list without it', () => {
+    // Keeping it would leave the one-click fix unable to clear the warning it
+    // is offered for (#522).
+    expect(supportedSubset(['openid', 'email'], ['email'])).toEqual(['email'])
   })
 
   it('returns the input unchanged when nothing is advertised', () => {

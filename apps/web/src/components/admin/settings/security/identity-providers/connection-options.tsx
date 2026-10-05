@@ -9,8 +9,9 @@
  * configuration must never sit hidden behind a closed panel.
  *
  * Scopes are tokens rather than a free-text field: a text box cannot show
- * WHICH scope an IdP rejected, and it lets someone delete `openid` without
- * noticing that doing so stops the request being an OIDC request at all.
+ * WHICH scope an IdP rejected. `openid` can be removed, because some OAuth
+ * providers reject it, but removing it raises a warning: the request stops
+ * being an OIDC request and no ID token comes back.
  * A scope the discovery document does not advertise is flagged, never
  * removed silently — `scopes_supported` is only RECOMMENDED and may be
  * incomplete.
@@ -29,7 +30,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import {
-  REQUIRED_OIDC_SCOPE,
+  OPENID_SCOPE,
   normalizeScopesInput,
   parseScopes,
   supportedSubset,
@@ -142,19 +143,15 @@ export function ConnectionOptions({
                 className="inline-flex items-center gap-1.5 rounded-md border border-border/60 bg-card px-2 py-1 font-mono text-xs"
               >
                 {scope}
-                {scope === REQUIRED_OIDC_SCOPE ? (
-                  <span className="text-[11px] text-muted-foreground">required</span>
-                ) : (
-                  <button
-                    type="button"
-                    aria-label={`Remove scope ${scope}`}
-                    disabled={disabled}
-                    onClick={() => onScopesChange(scopes.filter((s) => s !== scope))}
-                    className="text-muted-foreground hover:text-destructive"
-                  >
-                    ×
-                  </button>
-                )}
+                <button
+                  type="button"
+                  aria-label={`Remove scope ${scope}`}
+                  disabled={disabled}
+                  onClick={() => onScopesChange(scopes.filter((s) => s !== scope))}
+                  className="text-muted-foreground hover:text-destructive"
+                >
+                  ×
+                </button>
               </span>
             ))}
           </div>
@@ -174,6 +171,22 @@ export function ConnectionOptions({
           <p className="text-sm text-muted-foreground">
             Custom claims can require additional scopes.
           </p>
+          {scopes.length > 0 && !scopes.includes(OPENID_SCOPE) && (
+            <div data-testid="scope-openid-missing-warning">
+              <WarningBox
+                variant="warning"
+                title="Sign-in will not be an OpenID Connect request"
+                description={
+                  <>
+                    Without <span className="font-mono">openid</span> your provider returns no ID
+                    token. Remove it only if your provider rejects it, and make sure the claim
+                    mapping reads the account identifier from another source, such as the
+                    access-token JWT.
+                  </>
+                }
+              />
+            </div>
+          )}
           {unsupported.length > 0 && (
             <div data-testid="scope-mismatch-warning" className="space-y-2">
               <WarningBox
