@@ -632,15 +632,39 @@ describe('<ProviderDetailPage> connection options', () => {
     )
   })
 
-  it('prefills the effective scopes and does not offer to remove openid', () => {
+  it('prefills the effective scopes, each removable, with no openid warning', () => {
     renderPage(makeProvider({ scopes: null }))
     editConnection()
     openConnectionOptions()
     for (const scope of ['openid', 'email', 'profile']) {
       expect(screen.getByTestId(`scope-token-${scope}`)).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: `Remove scope ${scope}` })).toBeInTheDocument()
     }
-    expect(screen.queryByRole('button', { name: 'Remove scope openid' })).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Remove scope email' })).toBeInTheDocument()
+    expect(screen.queryByTestId('scope-openid-missing-warning')).not.toBeInTheDocument()
+  })
+
+  it('lets openid be replaced for a provider that rejects it (#522)', async () => {
+    renderPage(makeProvider({ scopes: null }))
+    editConnection()
+    openConnectionOptions()
+    for (const scope of ['openid', 'email', 'profile']) {
+      fireEvent.click(screen.getByRole('button', { name: `Remove scope ${scope}` }))
+    }
+    fireEvent.change(screen.getByLabelText('Add a scope'), { target: { value: 'publicData' } })
+    fireEvent.submit(screen.getByTestId('scope-add-form'))
+    expect(screen.getByTestId('scope-openid-missing-warning')).toBeInTheDocument()
+    saveConnection()
+    await waitFor(() => expect(upsertSpy).toHaveBeenCalled())
+    expect(lastUpsert().scopes).toBe('publicData')
+  })
+
+  it('round-trips a stored set without openid', async () => {
+    renderPage(makeProvider({ scopes: 'publicData' }))
+    editConnection()
+    expect(screen.getByTestId('scope-openid-missing-warning')).toBeInTheDocument()
+    saveConnection()
+    await waitFor(() => expect(upsertSpy).toHaveBeenCalled())
+    expect(lastUpsert().scopes).toBe('publicData')
   })
 
   it('saves null for scopes, prompt and client auth when the defaults are untouched', async () => {
